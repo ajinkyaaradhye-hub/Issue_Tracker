@@ -1,0 +1,63 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:16-alpine  # Alpine for smaller size
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_strong_password  # Change this!
+      POSTGRES_DB: issuetracker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:  # Ensures backend waits for DB
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:your_strong_password@postgres:5432/issuetracker?schema=public
+      PORT: 3000
+      NODE_ENV: production
+      JWT_SECRET: your_jwt_secret_here  # Add your real values
+      JWT_REFRESH_SECRET: your_refresh_secret_here
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      FRONTEND_URL: http://localhost:8080  # Or your prod domain
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./apps/frontend/Dockerfile
+    environment:
+      VITE_API_URL: http://backend:3000  # Internal Docker URL for API calls
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge

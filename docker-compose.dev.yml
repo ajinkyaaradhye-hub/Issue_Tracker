@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: issue-tracker-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: issuetracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile.dev
+    container_name: issue-tracker-backend
+    command: ["sh", "/app/start.sh"]
+    working_dir: /app
+    volumes:
+      - ./apps/backend:/app
+      - /app/node_modules
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/issuetracker?schema=public
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile.dev
+    container_name: issue-tracker-frontend
+    command: pnpm dev --host
+    working_dir: /app
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:3000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  prisma-studio:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile.dev
+    container_name: prisma-studio
+    working_dir: /app
+    command: ["pnpm", "prisma", "studio", "--browser", "none", "--port", "5555"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/issuetracker?schema=public
+    ports:
+      - "5555:5555"
+    depends_on:
+      - postgres
+
+
+volumes:
+  postgres_data:
